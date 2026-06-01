@@ -2,7 +2,7 @@
 
 This folder contains scripts for converting, visually checking, defacing, QCing, and preprocessing the `oa_navtrain` MRI data on TACC Lonestar6.
 
-This README begins **after the DICOM zip file has already been copied to TACC, unzipped, and placed in the correct `sourcedata` folder**.
+This README begins **after the DICOM zip file has already been copied to TACC** and placed in the `zipped_dicoms` folder.
 
 ---
 
@@ -43,20 +43,46 @@ Throughout these scripts:
 
 # Workflow overview
 
-Once DICOMs are fully unzipped into `sourcedata`, the workflow is:
-
-1. **If needed, inspect DICOM conversion outputs with `dcm2bids_helper.sh`** to build or revise the dcm2bids config
-2. **Run `run_dcm2bids.sh`** to create BIDS-formatted NIfTIs and sidecars
-3. **Visually QC the converted images** with `qc_open_session.sh`
-4. **Deface the T1w image in place** with `run_pydeface.sh`
-5. **Run MRIQC** with `run_mriqc.sh`
-6. **Run fMRIPrep** with `run_fmriprep_subject_session.sbatch`
+1. **Unzip DICOMs into `sourcedata`** with `unzip_all.sh`
+2. **If needed, inspect DICOM conversion outputs with `dcm2bids_helper.sh`** to build or revise the dcm2bids config
+3. **Run `run_dcm2bids.sh`** to create BIDS-formatted NIfTIs and sidecars
+4. **Visually QC the converted images** with `qc_open_session.sh`
+5. **Deface the T1w image in place** with `run_pydeface.sh`
+6. **Run MRIQC** with `run_mriqc.sh`
+7. **Run fMRIPrep** with `run_fmriprep_subject_session.sbatch`
 
 Processing stages are tracked separately outside these scripts.
 
 ---
 
-# 1. Use dcm2bids helper when a config needs checking or revision
+# 1. Unzip DICOMs into sourcedata
+
+Use `unzip_all.sh` to extract a single subject/session zip into the correct `sourcedata` folder.
+
+General form:
+
+```bash
+bash unzip_all.sh <SITE> <SUBJECT_ID> <SESSION_ID> <ZIP_FILE>
+```
+
+Examples:
+
+```bash
+bash unzip_all.sh AZ 1603 02 1603_T2.zip
+bash unzip_all.sh UTA utadev01 01 utadev01_ses01.zip
+```
+
+The script:
+
+* resolves the output path to `bids_<SITE>/sourcedata/sub-<SUBJECT_ID>/ses-<SESSION_ID>/`
+* checks that the zip file exists in `zipped_dicoms/` before attempting extraction
+* uses `unzip -o` to overwrite existing files if re-extracting
+
+After unzipping, confirm the expected DICOM files are present in the `sourcedata` folder before proceeding.
+
+---
+
+# 2. Use dcm2bids helper when a config needs checking or revision
 
 If a site/session config has already been tested and works, this step may not be necessary.
 
@@ -104,7 +130,7 @@ If a scan that should be present is missing or weirdly unpaired, first confirm t
 
 ---
 
-# 2. Run dcm2bids
+# 3. Run dcm2bids
 
 Use the dcm2bids Slurm script to convert one subject/session at a time.
 
@@ -125,7 +151,7 @@ sbatch run_dcm2bids.sh UTA 1001 01 --copy-template --validate
 Options:
 
 * `--copy-template`
-  If the subject/session config does not yet exist, create it from the site/session template.
+  Copy the site/session template to the subject/session config, overwriting any existing config.
 
 * `--use-existing-config`
   Do not create or copy a template; require the subject/session config to already exist.
@@ -146,7 +172,7 @@ Watch for:
 
 ---
 
-# 3. Visually QC the converted BIDS images
+# 4. Visually QC the converted BIDS images
 
 Before defacing, open the converted BIDS images in FSLeyes.
 
@@ -206,7 +232,7 @@ For borderline calls:
 
 ---
 
-# 4. Deface the T1w image in place
+# 5. Deface the T1w image in place
 
 Once a subject/session passes basic visual QC, deface the T1w image using:
 
@@ -238,7 +264,7 @@ No marker files are written. Defacing status is tracked externally.
 
 ---
 
-# 5. Run MRIQC
+# 6. Run MRIQC
 
 MRIQC provides automated quality-control reports for the raw BIDS images.
 
@@ -268,7 +294,7 @@ After MRIQC finishes, inspect the generated HTML reports and quality summaries f
 
 ---
 
-# 6. Run fMRIPrep
+# 7. Run fMRIPrep
 
 After:
 
@@ -349,19 +375,22 @@ ImageTypeText: ORIGINAL, PRIMARY, M, NORM, DIS2D
 Example for AZ subject 1501 session 02:
 
 ```bash
-# 1. Convert to BIDS
+# 1. Unzip DICOMs into sourcedata
+bash unzip_all.sh AZ 1501 02 1501_T2.zip
+
+# 2. Convert to BIDS
 sbatch run_dcm2bids.sh AZ 1501 02 --use-existing-config --validate
 
-# 2. Visually QC after the conversion job finishes
+# 3. Visually QC after the conversion job finishes
 bash qc_open_session.sh AZ 1501 02
 
-# 3. Deface the T1w if the images look acceptable
+# 4. Deface the T1w if the images look acceptable
 sbatch run_pydeface.sh AZ 1501 02
 
-# 4. Run MRIQC
+# 5. Run MRIQC
 sbatch run_mriqc.sh AZ 1501 02
 
-# 5. Run fMRIPrep when ready
+# 6. Run fMRIPrep when ready
 sbatch run_fmriprep_subject_session.sbatch AZ 1501 02
 ```
 
