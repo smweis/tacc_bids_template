@@ -120,7 +120,7 @@ if [ -z "$CONFIG_MODE" ]; then
 fi
 
 BASE_DIR=/work/10989/stevenweisberg/ls6/oa_navtrain
-CONFIG_DIR=$BASE_DIR/oa_navtrain/configs
+CONFIG_DIR=$BASE_DIR/configs
 LOG_DIR=$BASE_DIR/logs
 
 TMP_ROOT=$BASE_DIR/tmp_dcm2bids
@@ -179,19 +179,13 @@ echo "=============================="
 
 case "$CONFIG_MODE" in
     copy-template)
-        if [ -f "$CONFIG_JSON" ]; then
-            echo "Subject/session config already exists: $CONFIG_JSON"
-            echo "Using existing file."
-        else
-            if [ ! -f "$TEMPLATE_JSON" ]; then
-                echo "ERROR: template config not found: $TEMPLATE_JSON"
-                exit 1
-            fi
-            cp "$TEMPLATE_JSON" "$CONFIG_JSON"
-            echo "Created subject/session config from template:"
-            echo "  $CONFIG_JSON"
-            echo "Continuing with dcm2bids run."
+        if [ ! -f "$TEMPLATE_JSON" ]; then
+            echo "ERROR: template config not found: $TEMPLATE_JSON"
+            exit 1
         fi
+        cp "$TEMPLATE_JSON" "$CONFIG_JSON"
+        echo "Copied template to subject/session config (clobbering any existing):"
+        echo "  $CONFIG_JSON"
         ;;
     use-existing-config)
         if [ ! -f "$CONFIG_JSON" ]; then
