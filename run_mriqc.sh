@@ -19,21 +19,25 @@ set -euo pipefail
 usage() {
     cat <<EOF
 Usage:
-  sbatch $0 <SITE> <SUBJECT_ID> <SESSION_ID>
+  sbatch $0 <SITE> <SUBJECT_ID> <SESSION_ID> [--dry-run]
 
 Required:
   SITE          One of: AZ, UTA
   SUBJECT_ID    Subject ID WITHOUT the 'sub-' prefix
   SESSION_ID    Session ID WITHOUT the 'ses-' prefix; e.g., 01 or 02
 
+Optional:
+  --dry-run     Print resolved paths and the command that would run, then exit
+
 Examples:
   sbatch $0 AZ 1501 01
   sbatch $0 AZ 1501 02
   sbatch $0 UTA 1001 01
+  sbatch $0 AZ 1501 01 --dry-run
 EOF
 }
 
-if [[ $# -ne 3 ]]; then
+if [[ $# -lt 3 || $# -gt 4 ]]; then
     usage
     exit 1
 fi
@@ -41,6 +45,15 @@ fi
 SITE="$1"
 SUB="$2"
 SES="$3"
+DRYRUN=false
+
+if [[ "${4:-}" == "--dry-run" ]]; then
+    DRYRUN=true
+elif [[ -n "${4:-}" ]]; then
+    echo "ERROR: unknown option: $4" >&2
+    usage
+    exit 1
+fi
 
 if [[ "$SITE" != "AZ" && "$SITE" != "UTA" ]]; then
     echo "ERROR: SITE must be AZ or UTA" >&2
@@ -69,7 +82,6 @@ fi
 mkdir -p "$OUT_DIR"
 mkdir -p "$WORK_DIR"
 
-echo "Running MRIQC"
 echo "  Site:        $SITE"
 echo "  Subject:     sub-$SUB"
 echo "  Session:     ses-$SES"
@@ -78,7 +90,23 @@ echo "  Output dir:  $OUT_DIR"
 echo "  Work dir:    $WORK_DIR"
 echo "  Container:   $CONTAINER"
 echo "  CPUs:        ${SLURM_CPUS_PER_TASK:-8}"
+echo "  Dry-run:     $DRYRUN"
 echo
+
+if [[ "$DRYRUN" = true ]]; then
+    echo "DRY-RUN: would execute:"
+    echo "  apptainer run --cleanenv \\"
+    echo "    -B $BASE:$BASE -B $SCRATCH:$SCRATCH \\"
+    echo "    $CONTAINER $BIDS_DIR $OUT_DIR participant \\"
+    echo "    --participant-label $SUB --session-id $SES \\"
+    echo "    --nprocs 8 --omp-nthreads 8 --mem 32 \\"
+    echo "    --no-sub --no-datalad-get -w $WORK_DIR"
+    echo ""
+    echo "No files were created or modified."
+    exit 0
+fi
+
+echo "Running MRIQC"
 
 apptainer run --cleanenv \
   -B "$BASE":"$BASE" \

@@ -21,23 +21,25 @@ cd /work/10989/stevenweisberg/ls6/oa_navtrain
 usage() {
     cat <<EOF
 Usage:
-  $0 <SITE> <SUBJECT_ID> <SESSION_ID> <--copy-template | --use-existing-config> [--validate] [--re-run]
+  $0 <SITE> <SUBJECT_ID> <SESSION_ID> <--copy-template | --use-existing-config> [--validate] [--re-run] [--dry-run]
 
 Required:
   SITE                    One of: UTA, AZ
   SUBJECT_ID              Subject ID WITHOUT the 'sub-' prefix
   SESSION_ID              Session ID WITHOUT the 'ses-' prefix; must be 01 or 02
-  --copy-template         If subject/session config does not exist, create it from the site/session template
+  --copy-template         Copy the site/session template to the subject/session config, overwriting any existing
   --use-existing-config   Do NOT create/copy a template; require subject/session config to already exist
 
 Optional:
   --validate              Run bids-validator-deno after conversion
   --re-run                Remove existing subject/session BIDS output before running
+  --dry-run               Print resolved paths and the command that would run, then exit without doing anything
 
 Examples:
   $0 AZ 1501 01 --copy-template
   $0 AZ 1501 02 --use-existing-config --validate --re-run
   $0 UTA utadev01 01 --copy-template
+  $0 AZ 1501 01 --copy-template --dry-run
 
 Important:
   SUBJECT_ID should NOT include 'sub-'.
@@ -45,7 +47,7 @@ Important:
 EOF
 }
 
-if [ "$#" -lt 4 ] || [ "$#" -gt 6 ]; then
+if [ "$#" -lt 4 ] || [ "$#" -gt 7 ]; then
     usage
     exit 1
 fi
@@ -78,6 +80,7 @@ SESID="ses-$SESSION_ID"
 
 VALIDATE=false
 RERUN=false
+DRYRUN=false
 CONFIG_MODE=""
 
 shift 3
@@ -88,6 +91,9 @@ for arg in "$@"; do
             ;;
         --re-run)
             RERUN=true
+            ;;
+        --dry-run)
+            DRYRUN=true
             ;;
         --copy-template)
             if [ -n "$CONFIG_MODE" ]; then
@@ -175,7 +181,20 @@ echo "TEMPLATE:     $TEMPLATE_JSON"
 echo "TMP ROOT:     $SUB_TMP_DIR"
 echo "VALIDATE:     $VALIDATE"
 echo "RE-RUN:       $RERUN"
+echo "DRY-RUN:      $DRYRUN"
 echo "=============================="
+
+if [ "$DRYRUN" = true ]; then
+    echo ""
+    echo "DRY-RUN: would execute:"
+    echo "  dcm2bids -d $SOURCE_SUBDIR -p $RAW_SUBID -s $SESSION_ID -c $CONFIG_JSON -o $BIDS_DIR"
+    if [ "$VALIDATE" = true ]; then
+        echo "  bids-validator-deno $BIDS_DIR"
+    fi
+    echo ""
+    echo "No files were created or modified."
+    exit 0
+fi
 
 case "$CONFIG_MODE" in
     copy-template)
