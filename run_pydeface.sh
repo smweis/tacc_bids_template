@@ -62,6 +62,8 @@ BIDS_DIR="$BASE/bids_${SITE}"
 ANAT_DIR="$BIDS_DIR/sub-${SUB}/ses-${SES}/anat"
 T1="$ANAT_DIR/sub-${SUB}_ses-${SES}_T1w.nii.gz"
 TMP="${T1%.nii.gz}_PYDEFACE_TMP.nii.gz"
+STATUS_DIR="$BIDS_DIR/code/status"
+MARKER="$STATUS_DIR/sub-${SUB}_ses-${SES}_defaced"
 
 module reset
 
@@ -103,8 +105,11 @@ pydeface "$T1" \
 
 if [[ -s "$TMP" ]]; then
     mv "$TMP" "$T1"
+    mkdir -p "$STATUS_DIR"
+    touch "$MARKER"
     echo
     echo "Success. Replaced original T1w with defaced version."
+    echo "Defaced marker written: $MARKER"
 else
     echo "ERROR: Expected defaced output missing or empty:" >&2
     echo "  $TMP" >&2

@@ -2,11 +2,48 @@
 
 set -euo pipefail
 
-SITE="${1:?Usage: $0 <SITE> <SUBJECT_ID> <SESSION_ID>}"
-SUB="${2:?Usage: $0 <SITE> <SUBJECT_ID> <SESSION_ID>}"
-SES="${3:?Usage: $0 <SITE> <SUBJECT_ID> <SESSION_ID>}"
+usage() {
+    cat <<EOF
+Usage:
+  bash $0 <SITE> <SUBJECT_ID> <SESSION_ID> [--mark-qc-passed]
 
-BASE="/work/10989/stevenweisberg/ls6/oa_navtrain/bids_${SITE}/sub-${SUB}/ses-${SES}"
+Required:
+  SITE          One of: AZ, UTA
+  SUBJECT_ID    Subject ID WITHOUT the 'sub-' prefix
+  SESSION_ID    Session ID WITHOUT the 'ses-' prefix; 01 or 02
+
+Optional:
+  --mark-qc-passed    After FSLeyes closes, write a marker recording that
+                      visual QC was passed. Used by check_progress.sh.
+
+Examples:
+  bash $0 AZ 1501 01
+  bash $0 AZ 1501 01 --mark-qc-passed
+EOF
+}
+
+if [[ $# -lt 3 || $# -gt 4 ]]; then
+    usage
+    exit 1
+fi
+
+SITE="$1"
+SUB="$2"
+SES="$3"
+MARK_QC=false
+
+if [[ "${4:-}" == "--mark-qc-passed" ]]; then
+    MARK_QC=true
+elif [[ -n "${4:-}" ]]; then
+    echo "ERROR: unknown option: $4"
+    usage
+    exit 1
+fi
+
+BIDS_ROOT="/work/10989/stevenweisberg/ls6/oa_navtrain/bids_${SITE}"
+BASE="$BIDS_ROOT/sub-${SUB}/ses-${SES}"
+STATUS_DIR="$BIDS_ROOT/code/status"
+MARKER="$STATUS_DIR/sub-${SUB}_ses-${SES}_qc-passed"
 
 if [[ "$SES" == "01" ]]; then
   fsleyes \
@@ -22,4 +59,10 @@ elif [[ "$SES" == "02" ]]; then
 else
   echo "ERROR: SESSION_ID must be 01 or 02"
   exit 1
+fi
+
+if [[ "$MARK_QC" == true ]]; then
+    mkdir -p "$STATUS_DIR"
+    touch "$MARKER"
+    echo "QC passed marker written: $MARKER"
 fi

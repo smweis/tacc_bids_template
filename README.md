@@ -370,6 +370,50 @@ ImageTypeText: ORIGINAL, PRIMARY, M, NORM, DIS2D
 
 ---
 
+# Checking pipeline progress
+
+`code/check_progress.sh` prints a per-subject/session status table for one site, inferred from the filesystem and from marker files written by the pipeline scripts.
+
+Deploy it to the cluster at `bids_<SITE>/code/check_progress.sh`, then run:
+
+```bash
+bash /work/10989/stevenweisberg/ls6/oa_navtrain/bids_AZ/code/check_progress.sh AZ
+bash /work/10989/stevenweisberg/ls6/oa_navtrain/bids_UTA/code/check_progress.sh UTA
+```
+
+Example output:
+
+```
+Progress: AZ
+BIDS dir: /work/.../bids_AZ
+As of:    2025-06-01 14:32
+
+SUBJECT        SES     UNZIP   BIDS    QC      DEFACE  MRIQC   FMRIPREP
+-------------- ------  ------- ------- ------- ------- ------- ---------
+sub-1501       ses-01  YES      YES     YES     YES      YES     YES
+sub-1501       ses-02  YES      YES     YES     YES      YES      --
+sub-1603       ses-02  YES       --      --      --       --      --
+```
+
+Stages and how they are detected:
+
+| Stage    | How detected |
+|----------|-------------|
+| UNZIP    | `sourcedata/sub-X/ses-Y/` exists and contains files |
+| BIDS     | `sub-X/ses-Y/**/*.nii.gz` exists in the BIDS dir |
+| QC       | Marker file written by `qc_open_session.sh --mark-qc-passed` |
+| DEFACE   | Marker file written automatically by `run_pydeface.sh` on success |
+| MRIQC    | `derivatives/mriqc/sub-X_ses-Y_*.html` or `derivatives/mriqc/sub-X/ses-Y/` exists |
+| FMRIPREP | `derivatives/fmriprep/sub-X/ses-Y/` exists |
+
+Marker files are stored in `bids_<SITE>/code/status/`. To mark visual QC as passed, close FSLeyes and use the `--mark-qc-passed` flag:
+
+```bash
+bash qc_open_session.sh AZ 1501 01 --mark-qc-passed
+```
+
+---
+
 # Recommended processing order for a new subject/session
 
 Example for AZ subject 1501 session 02:
