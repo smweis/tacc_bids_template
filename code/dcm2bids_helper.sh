@@ -2,57 +2,57 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIDS_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(dirname "$BIDS_DIR")"
+
 usage() {
     cat <<EOF
 Usage:
-  bash $0 <SITE> <SUBJECT_ID> <SESSION_ID>
+  bash $0 <SUBJECT_ID> <SESSION_ID>
 
 Required:
-  SITE          One of: AZ, UTA
   SUBJECT_ID    Subject ID WITHOUT the 'sub-' prefix (e.g. 1603)
   SESSION_ID    Session ID WITHOUT the 'ses-' prefix (e.g. 01 or 02)
 
 Examples:
-  bash $0 AZ 1603 02
-  bash $0 UTA utadev01 01
+  bash $0 1603 02
+  bash $0 utadev01 01
 
 Purpose:
   Runs dcm2bids_helper on a subject/session's DICOM directory and writes
   converted NIfTI JSON sidecars to a scratch directory for inspection.
 
   Use this to:
-    - Build a new dcm2bids config for a site/session type you haven't seen before
+    - Build a new dcm2bids config for a session type you haven't seen before
     - Debug unexpected 'No Pairing' outputs from run_dcm2bids.sh
     - Confirm which DICOM fields are available for config matching
 
   After it runs, inspect the JSON sidecars in the output directory printed
   below. Each .json file corresponds to one DICOM series and shows all
-  available metadata fields (SeriesDescription, ProtocolName, ImageTypeText,
-  NonlinearGradientCorrection, etc.) that can be used as criteria in a
-  dcm2bids config.
+  available metadata fields that can be used as criteria in a dcm2bids config.
 
   Key fields to look for:
-    SeriesDescription       Most reliable identifier for a scan type
-    ProtocolName            Often matches SeriesDescription
-    NonlinearGradientCorrection  Use to distinguish T1_MPRAGE from T1_MPRAGE_ND
-    ImageTypeText           Use to select among duplicate-looking reconstructions
+    SeriesDescription           Most reliable identifier for a scan type
+    ProtocolName                Often matches SeriesDescription
+    NonlinearGradientCorrection Use to distinguish T1_MPRAGE from T1_MPRAGE_ND
+    ImageTypeText               Use to select among duplicate-looking reconstructions
 
   Do NOT rely on series number prefixes (e.g. 005_, 006_) — these vary
   across participants and sessions.
 
-  Output is written to \$SCRATCH and will be auto-cleaned by TACC. It does
-  NOT touch the real BIDS directory.
+  Output is written to \$SCRATCH and will be auto-cleaned by TACC.
+  It does NOT touch the real BIDS directory.
 EOF
 }
 
-if [[ $# -ne 3 ]]; then
+if [[ $# -ne 2 ]]; then
     usage
     exit 1
 fi
 
-SITE="$1"
-RAW_SUBID="$2"
-SESSION_ID="$3"
+RAW_SUBID="$1"
+SESSION_ID="$2"
 
 if [[ "$RAW_SUBID" == sub-* ]]; then
     echo "ERROR: SUBJECT_ID should NOT include 'sub-'."
@@ -64,14 +64,8 @@ if [[ "$SESSION_ID" == ses-* ]]; then
     exit 1
 fi
 
-if [[ "$SITE" != "AZ" && "$SITE" != "UTA" ]]; then
-    echo "ERROR: SITE must be AZ or UTA"
-    exit 1
-fi
-
-BASE="/work/10989/stevenweisberg/ls6/oa_navtrain"
-DICOM_DIR="$BASE/bids_${SITE}/sourcedata/sub-${RAW_SUBID}/ses-${SESSION_ID}"
-HELPER_DIR="$SCRATCH/oa_navtrain/dcm2bids_helper_${SITE}_sub-${RAW_SUBID}_ses-${SESSION_ID}"
+DICOM_DIR="$BIDS_DIR/sourcedata/sub-${RAW_SUBID}/ses-${SESSION_ID}"
+HELPER_DIR="$SCRATCH/dcm2bids_helper_sub-${RAW_SUBID}_ses-${SESSION_ID}"
 
 if [[ ! -d "$DICOM_DIR" ]]; then
     echo "ERROR: DICOM source directory not found:"
@@ -79,12 +73,11 @@ if [[ ! -d "$DICOM_DIR" ]]; then
     exit 1
 fi
 
-source "$BASE/venvs/dcm2bids/bin/activate"
+source "$PROJECT_DIR/venvs/dcm2bids/bin/activate"
 
 mkdir -p "$HELPER_DIR"
 
 echo "Running dcm2bids_helper"
-echo "  Site:    $SITE"
 echo "  Subject: sub-$RAW_SUBID"
 echo "  Session: ses-$SESSION_ID"
 echo "  Input:   $DICOM_DIR"

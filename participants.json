@@ -1,0 +1,8 @@
+{
+  "participant_id": {
+    "Description": "Unique participant identifier"
+  },
+  "site": {
+    "Description": "Data acquisition site"
+  }
+}

@@ -6,22 +6,27 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH -t 2:00:00
-#SBATCH -o /work/10989/stevenweisberg/ls6/oa_navtrain/logs/fmriprep_%x_%j.out
-#SBATCH -e /work/10989/stevenweisberg/ls6/oa_navtrain/logs/fmriprep_%x_%j.err
+#SBATCH -o logs/fmriprep_%x_%j.out
+#SBATCH -e logs/fmriprep_%x_%j.err
+#SBATCH --mail-type=FAIL
+#SBATCH -A ACCOUNT_CODE
+#SBATCH --mail-user=YOUR_EMAIL@domain.com
+
+# Submit from the BIDS root directory:
+#   sbatch code/run_fmriprep_subject_session.sbatch <SUBJECT_ID> <SESSION_ID> [--dry-run]
+#
+# SUBJECT_ID: WITHOUT "sub-"
+# SESSION_ID: WITHOUT "ses-" (defaults to 01)
 
 set -eo pipefail
 
-export BASH_COMPLETION_DEBUG=0
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIDS_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(dirname "$BIDS_DIR")"
+
 module load tacc-apptainer
 
-# Usage:
-#   sbatch run_fmriprep_subject_session.sbatch <SUBJECT_ID> <SESSION_ID> [--dry-run]
-#
-# Subject should be entered WITHOUT "sub-"
-# Session should be entered WITHOUT "ses-"
-# --dry-run prints resolved paths and the apptainer command, then exits
-
-SUBJECT=${1:?ERROR: provide subject ID, e.g. 1501}
+SUBJECT=${1:?ERROR: provide subject ID without sub- prefix, e.g. 1501}
 SESSION=${2:-01}
 
 DRYRUN=false
@@ -32,16 +37,14 @@ for arg in "${@:3}"; do
     esac
 done
 
-PROJECT=/work/10989/stevenweisberg/ls6/oa_navtrain
-BIDS_DIR=${PROJECT}/bids_AZ
-OUT_DIR=${PROJECT}/derivatives/fmriprep
-WORK_DIR=${SCRATCH}/fmriprep_work/sub-${SUBJECT}_ses-${SESSION}
-SIF=${PROJECT}/containers/fmriprep-25.2.5.sif
-FS_LICENSE=${PROJECT}/license.txt
+OUT_DIR="$BIDS_DIR/derivatives/fmriprep"
+WORK_DIR="$SCRATCH/fmriprep_work/sub-${SUBJECT}_ses-${SESSION}"
+SIF="$PROJECT_DIR/containers/fmriprep-25.2.5.sif"
+FS_LICENSE="$PROJECT_DIR/license.txt"
 
-mkdir -p ${PROJECT}/logs
-mkdir -p ${OUT_DIR}
-mkdir -p ${WORK_DIR}
+mkdir -p "$BIDS_DIR/logs"
+mkdir -p "$OUT_DIR"
+mkdir -p "$WORK_DIR"
 
 echo "Subject:    sub-${SUBJECT}"
 echo "Session:    ses-${SESSION}"
@@ -55,7 +58,8 @@ if [ "$DRYRUN" = true ]; then
     echo ""
     echo "DRY-RUN: would execute:"
     echo "  apptainer run --cleanenv \\"
-    echo "    -B ${PROJECT}:${PROJECT} \\"
+    echo "    -B ${BIDS_DIR}:${BIDS_DIR} \\"
+    echo "    -B ${PROJECT_DIR}:${PROJECT_DIR} \\"
     echo "    -B ${SCRATCH}:${SCRATCH} \\"
     echo "    ${SIF} \\"
     echo "    ${BIDS_DIR} ${OUT_DIR} participant \\"
@@ -74,16 +78,17 @@ echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node: $(hostname)"
 
 apptainer run --cleanenv \
-  -B ${PROJECT}:${PROJECT} \
-  -B ${SCRATCH}:${SCRATCH} \
-  ${SIF} \
-  ${BIDS_DIR} \
-  ${OUT_DIR} \
+  -B "${BIDS_DIR}":"${BIDS_DIR}" \
+  -B "${PROJECT_DIR}":"${PROJECT_DIR}" \
+  -B "${SCRATCH}":"${SCRATCH}" \
+  "${SIF}" \
+  "${BIDS_DIR}" \
+  "${OUT_DIR}" \
   participant \
-  --participant-label ${SUBJECT} \
-  --fs-license-file ${FS_LICENSE} \
-  --work-dir ${WORK_DIR} \
-  --nthreads ${SLURM_CPUS_PER_TASK} \
+  --participant-label "${SUBJECT}" \
+  --fs-license-file "${FS_LICENSE}" \
+  --work-dir "${WORK_DIR}" \
+  --nthreads "${SLURM_CPUS_PER_TASK}" \
   --omp-nthreads 4 \
   --mem_mb 45000 \
   --output-spaces MNI152NLin2009cAsym:res-2 T1w \

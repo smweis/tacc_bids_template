@@ -1,0 +1,67 @@
+{
+  "descriptions": [
+    {
+      "datatype": "anat",
+      "suffix": "T1w",
+      "criteria": {
+        "SeriesDescription": "T1_MPRAGE",
+        "NonlinearGradientCorrection": true
+      }
+    },
+    {
+      "id": "task_rest",
+      "datatype": "func",
+      "suffix": "bold",
+      "custom_entities": "task-rest",
+      "criteria": {
+        "SeriesDescription": "fcMRI_EPI_REST"
+      },
+      "sidecar_changes": {
+        "TaskName": "rest"
+      }
+    },
+    {
+      "datatype": "fmap",
+      "suffix": "magnitude1",
+      "custom_entities": "acq-gre",
+      "criteria": {
+        "SidecarFilename": "*field_mapping_*_e1.json"
+      }
+    },
+    {
+      "datatype": "fmap",
+      "suffix": "magnitude2",
+      "custom_entities": "acq-gre",
+      "criteria": {
+        "SidecarFilename": "*field_mapping_*_e2.json"
+      }
+    },
+    {
+      "datatype": "fmap",
+      "suffix": "phasediff",
+      "custom_entities": "acq-gre",
+      "criteria": {
+        "SidecarFilename": "*field_mapping_*_e2_ph.json"
+      },
+      "sidecar_changes": {
+        "IntendedFor": "task_rest"
+      }
+    },
+    {
+      "datatype": "dwi",
+      "suffix": "dwi",
+      "custom_entities": "acq-dir",
+      "criteria": {
+        "SeriesDescription": "DTI_55_DIR"
+      }
+    },
+    {
+      "datatype": "dwi",
+      "suffix": "dwi",
+      "custom_entities": "acq-rpe",
+      "criteria": {
+        "SeriesDescription": "DTI_55_RPE"
+      }
+    }
+  ]
+}

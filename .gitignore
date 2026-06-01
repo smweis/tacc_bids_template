@@ -1,0 +1,25 @@
+# BIDS subject data
+sub-*/
+
+# Raw DICOMs
+sourcedata/
+
+# Derivatives (preprocessing outputs)
+derivatives/
+
+# Temporary dcm2bids working directory
+tmp_dcm2bids/
+
+# Runtime status markers
+code/status/
+
+# SLURM logs
+logs/
+
+# Subject-specific dcm2bids configs (tracked in forks, not in template)
+code/configs/*_sub-*
+
+# OS / editor noise
+.DS_Store
+__pycache__/
+*.pyc

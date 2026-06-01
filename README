@@ -1,0 +1,45 @@
+DATASET_NAME
+============
+
+Principal Investigator: Steven Weisberg (REPLACE@institution.edu)
+
+OVERVIEW
+--------
+REPLACE with a brief description of the study, population, and goals.
+
+SITE
+----
+REPLACE with data acquisition site and scanner information.
+
+SESSIONS
+--------
+Session 01: Resting-state fMRI, T1w, fieldmaps, DWI
+Session 02: Resting-state fMRI, T1w, hippocampal T2w, fieldmaps
+
+TASKS
+-----
+task-rest: Eyes-open resting-state fMRI
+
+DATA COLLECTION
+---------------
+REPLACE with IRB protocol number, consent information, and any
+relevant acquisition notes.
+
+PREPROCESSING
+-------------
+Raw DICOMs were converted to BIDS format using dcm2bids 3.2.0.
+Anatomical images were defaced using PyDeface prior to sharing.
+Preprocessing was performed using fMRIPrep 25.2.5.
+Quality control reports were generated using MRIQC 24.0.2.
+
+DATA ORGANIZATION
+-----------------
+This dataset follows the Brain Imaging Data Structure (BIDS)
+specification v1.11.1. See https://bids.neuroimaging.io for details.
+
+Pipeline scripts are located in code/.
+
+CONTACT
+-------
+Steven Weisberg
+REPLACE@institution.edu
