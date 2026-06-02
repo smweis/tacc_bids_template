@@ -1,441 +1,371 @@
-# oa_navtrain MRI processing workflow
+# BIDS fMRI preprocessing pipeline — TACC Lonestar6
 
-This folder contains scripts for converting, visually checking, defacing, QCing, and preprocessing the `oa_navtrain` MRI data on TACC Lonestar6.
+This repository is a **BIDS dataset template** for fMRI preprocessing on TACC Lonestar6. It contains the dataset skeleton and all pipeline scripts. Each study/site is a separate repo created from this template.
 
-This README begins **after the DICOM zip file has already been copied to TACC** and placed in the `zipped_dicoms` folder.
+See `CLUSTER_USAGE.md` for a general introduction to working on Lonestar6.
 
 ---
 
-# Project directory conventions
+# Repository structure
 
-Main project directory:
-
-```bash
-/work/10989/stevenweisberg/ls6/oa_navtrain
-````
-
-BIDS datasets:
-
-```bash
-/work/10989/stevenweisberg/ls6/oa_navtrain/bids_AZ
-/work/10989/stevenweisberg/ls6/oa_navtrain/bids_UTA
+```
+bids_<dataset>/
+├── code/                          ← all pipeline scripts (this repo)
+│   ├── configs/                   ← dcm2bids configs
+│   │   ├── dcm2bids_config_ses-01_template.json
+│   │   ├── dcm2bids_config_ses-02_template.json
+│   │   └── dcm2bids_config_sub-<ID>_ses-<N>.json   (fork only, gitignored in template)
+│   ├── status/                    ← QC/deface markers (gitignored)
+│   ├── run_dcm2bids.sh
+│   ├── run_fmriprep_subject_session.sbatch
+│   ├── run_mriqc.sh
+│   ├── run_pydeface.sh
+│   ├── unzip_all.sh
+│   ├── dcm2bids_helper.sh
+│   ├── qc_open_session.sh
+│   ├── check_setup.sh
+│   ├── check_progress.sh
+│   └── sync_participants_tsv.sh
+├── sourcedata/                    ← raw DICOMs (gitignored)
+├── derivatives/                   ← preprocessing outputs (gitignored)
+├── sub-*/                         ← BIDS subject data (gitignored)
+├── dataset_description.json
+├── participants.tsv
+├── participants.json
+├── README                         ← BIDS dataset description
+└── CHANGES
 ```
 
-Expected sourcedata layout:
+Project-level resources (shared across datasets, lives one directory above):
 
-```bash
-bids_<SITE>/sourcedata/sub-<SUBJECT_ID>/ses-<SESSION_ID>/
+```
+<project_dir>/
+├── containers/        ← Apptainer SIF images
+├── venvs/             ← Python virtual environments
+├── zipped_dicoms/     ← incoming DICOM zip files
+└── license.txt        ← FreeSurfer license
 ```
 
-Example:
+Scripts resolve all paths automatically from their own location — no hardcoded paths.
+
+---
+
+# Setup
+
+Before running anything, verify the project structure is in place:
 
 ```bash
-/work/10989/stevenweisberg/ls6/oa_navtrain/bids_AZ/sourcedata/sub-1501/ses-02/
+bash code/check_setup.sh
+```
+
+All scripts must be submitted or run **from the BIDS root directory** so that relative log paths resolve correctly:
+
+```bash
+cd /path/to/bids_<dataset>
+sbatch code/run_dcm2bids.sh ...
 ```
 
 Throughout these scripts:
-
-* `SITE` is `AZ` or `UTA`
-* `SUBJECT_ID` is entered **without** the `sub-` prefix
-* `SESSION_ID` is entered **without** the `ses-` prefix, e.g. `01` or `02`
+- `SUBJECT_ID` is entered **without** the `sub-` prefix
+- `SESSION_ID` is entered **without** the `ses-` prefix (e.g. `01` or `02`)
 
 ---
 
 # Workflow overview
 
-1. **Unzip DICOMs into `sourcedata`** with `unzip_all.sh`
-2. **If needed, inspect DICOM conversion outputs with `dcm2bids_helper.sh`** to build or revise the dcm2bids config
-3. **Run `run_dcm2bids.sh`** to create BIDS-formatted NIfTIs and sidecars
-4. **Visually QC the converted images** with `qc_open_session.sh`
-5. **Deface the T1w image in place** with `run_pydeface.sh`
-6. **Run MRIQC** with `run_mriqc.sh`
-7. **Run fMRIPrep** with `run_fmriprep_subject_session.sbatch`
+1. **Unzip DICOMs** into `sourcedata/` with `code/unzip_all.sh`
+2. **Inspect DICOM metadata** with `code/dcm2bids_helper.sh` (when building or debugging a config)
+3. **Convert to BIDS** with `code/run_dcm2bids.sh`
+4. **Visually QC** converted images with `code/qc_open_session.sh`
+5. **Deface** the T1w image with `code/run_pydeface.sh`
+6. **Run MRIQC** with `code/run_mriqc.sh`
+7. **Run fMRIPrep** with `code/run_fmriprep_subject_session.sbatch`
 
-Processing stages are tracked separately outside these scripts.
+Check progress at any time:
+
+```bash
+bash code/check_progress.sh
+```
 
 ---
 
 # 1. Unzip DICOMs into sourcedata
 
-Use `unzip_all.sh` to extract a single subject/session zip into the correct `sourcedata` folder.
-
-General form:
-
 ```bash
-bash unzip_all.sh <SITE> <SUBJECT_ID> <SESSION_ID> <ZIP_FILE>
+bash code/unzip_all.sh <SUBJECT_ID> <SESSION_ID> <ZIP_FILE>
 ```
 
 Examples:
 
 ```bash
-bash unzip_all.sh AZ 1603 02 1603_T2.zip
-bash unzip_all.sh UTA utadev01 01 utadev01_ses01.zip
+bash code/unzip_all.sh 1603 02 1603_T2.zip
+bash code/unzip_all.sh 1501 01 1501_ses01.zip
 ```
 
-The script:
+- Zip files are expected in `<project_dir>/zipped_dicoms/`
+- Output goes to `sourcedata/sub-<SUBJECT_ID>/ses-<SESSION_ID>/`
+- Uses `unzip -o` so re-extraction is safe
 
-* resolves the output path to `bids_<SITE>/sourcedata/sub-<SUBJECT_ID>/ses-<SESSION_ID>/`
-* checks that the zip file exists in `zipped_dicoms/` before attempting extraction
-* uses `unzip -o` to overwrite existing files if re-extracting
-
-After unzipping, confirm the expected DICOM files are present in the `sourcedata` folder before proceeding.
+After unzipping, confirm the expected DICOMs are present before proceeding.
 
 ---
 
-# 2. Use dcm2bids helper when a config needs checking or revision
+# 2. Inspect DICOM metadata (when needed)
 
-If a site/session config has already been tested and works, this step may not be necessary.
-
-Use:
+If a session config has already been validated and works, skip this step.
 
 ```bash
-bash dcm2bids_helper.sh <SITE> <SUBJECT_ID> <SESSION_ID>
+bash code/dcm2bids_helper.sh <SUBJECT_ID> <SESSION_ID>
 ```
 
 Example:
 
 ```bash
-bash dcm2bids_helper.sh AZ 1501 02
+bash code/dcm2bids_helper.sh 1501 02
 ```
 
-Use the helper when:
+Use this when:
+- Converting a new session type for the first time
+- Scans appear unpaired during dcm2bids conversion
+- A participant's output does not match the expected config
+- The DICOM session contents look unusual
 
-* converting a new site/session type for the first time
-* scans appear unpaired during dcm2bids conversion
-* a participant's output does not match the expected config
-* the DICOM session contents look unusual
+Output is written to `$SCRATCH` and will not touch the BIDS directory. Inspect the `.json` sidecars it generates to identify which metadata fields to use in the config.
 
-The helper outputs should be written to `$SCRATCH`, not into the real BIDS directory.
+**Reliable fields for config matching:**
 
-After it runs, inspect the helper output directory printed by the script. The generated `.json` sidecars show which scanner metadata are available for config matching.
+| Field | Notes |
+|---|---|
+| `SeriesDescription` | Most stable identifier |
+| `ProtocolName` | Often matches SeriesDescription |
+| `NonlinearGradientCorrection` | Distinguish T1_MPRAGE from T1_MPRAGE_ND |
+| `ImageTypeText` | Select among duplicate-looking reconstructions |
 
-Important lessons learned:
-
-* Do **not** rely on series numbers like `005_` or `006_` unless absolutely necessary; they may vary across participants.
-* Prefer stable JSON metadata fields such as:
-
-  * `SeriesDescription`
-  * `ProtocolName`
-  * `NonlinearGradientCorrection`
-  * `ImageTypeText`
-* For AZ T1s, use the **gradient-corrected** T1 MPRAGE:
-
-  * `SeriesDescription: T1_MPRAGE`
-  * `NonlinearGradientCorrection: true`
-* For AZ session 2 hippocampal T2s, use the version with:
-
-  * `ImageTypeText: ORIGINAL, PRIMARY, M, NORM, DIS2D`
-
-If a scan that should be present is missing or weirdly unpaired, first confirm that the DICOM zip was **fully unzipped correctly**. Incomplete unzipping can mimic missing scans or broken configs.
+Do **not** use series number prefixes (e.g. `005_`, `006_`) — these vary across participants.
 
 ---
 
 # 3. Run dcm2bids
 
-Use the dcm2bids Slurm script to convert one subject/session at a time.
-
-General form:
-
 ```bash
-sbatch run_dcm2bids.sh <SITE> <SUBJECT_ID> <SESSION_ID> <--copy-template | --use-existing-config> [--validate] [--re-run]
+sbatch code/run_dcm2bids.sh <SUBJECT_ID> <SESSION_ID> <--copy-template | --use-existing-config> [--validate] [--re-run] [--dry-run]
 ```
 
 Examples:
 
 ```bash
-sbatch run_dcm2bids.sh AZ 1501 01 --use-existing-config --validate
-sbatch run_dcm2bids.sh AZ 1501 02 --use-existing-config --validate
-sbatch run_dcm2bids.sh UTA 1001 01 --copy-template --validate
+sbatch code/run_dcm2bids.sh 1501 01 --copy-template --validate
+sbatch code/run_dcm2bids.sh 1501 02 --use-existing-config --validate
+sbatch code/run_dcm2bids.sh 1501 01 --copy-template --dry-run
 ```
 
 Options:
 
-* `--copy-template`
-  Copy the site/session template to the subject/session config, overwriting any existing config.
+- `--copy-template` — copy `code/configs/dcm2bids_config_ses-<N>_template.json` to a subject-specific config, overwriting any existing one
+- `--use-existing-config` — require the subject-specific config to already exist; do not copy the template
+- `--validate` — run the BIDS validator after conversion
+- `--re-run` — remove existing BIDS output for that subject/session before running
+- `--dry-run` — print resolved paths and the command that would run, then exit
 
-* `--use-existing-config`
-  Do not create or copy a template; require the subject/session config to already exist.
-
-* `--validate`
-  Run the BIDS validator after conversion.
-
-* `--re-run`
-  Remove existing BIDS output for that subject/session before rerunning conversion.
-
-After completion, inspect the `.out` log to confirm that the expected scan types were paired.
+After completion, inspect the `.out` log in `logs/` to confirm expected scan types were paired.
 
 Watch for:
-
-* `No Pairing` lines for scans that should have converted
-* missing T1w, T2w, BOLD, or fieldmap outputs
-* unexpected extra scans that may need to be understood but not necessarily included
+- `No Pairing` lines for scans that should have converted
+- Missing T1w, T2w, BOLD, or fieldmap outputs
+- Unexpected extra scans
 
 ---
 
 # 4. Visually QC the converted BIDS images
 
-Before defacing, open the converted BIDS images in FSLeyes.
-
-Use:
-
 ```bash
-bash qc_open_session.sh <SITE> <SUBJECT_ID> <SESSION_ID>
+bash code/qc_open_session.sh <SUBJECT_ID> <SESSION_ID> [--mark-qc-passed]
 ```
 
 Examples:
 
 ```bash
-bash qc_open_session.sh AZ 1501 01
-bash qc_open_session.sh AZ 1501 02
-bash qc_open_session.sh UTA 1001 01
+bash code/qc_open_session.sh 1501 01
+bash code/qc_open_session.sh 1501 01 --mark-qc-passed
 ```
 
-The QC launcher:
+- Session 01: opens T1w, BOLD, fieldmaps
+- Session 02: opens T1w, T2w, BOLD, fieldmaps
+- `--mark-qc-passed` writes a marker to `code/status/` after FSLeyes closes, recording that QC passed (used by `check_progress.sh`)
 
-* opens T1w, BOLD, and fieldmaps for session 01
-* opens T1w, T2w, BOLD, and fieldmaps for session 02
+**What to check:**
 
-During visual QC, confirm:
+*T1w* — whole brain present, correct MPRAGE selected, no catastrophic motion
 
-### T1w
+*T2w* (session 02) — hippocampal oblique looks plausible, no severe artifact
 
-* Whole brain appears present
-* Correct MPRAGE was selected
-* No catastrophic motion or obvious corruption
-* No clearly incorrect reconstruction was chosen
+*BOLD* — coverage looks plausible, not scrambled or grossly truncated
 
-### T2w, when present
+*Fieldmaps* — expected images present, magnitude/phasediff look like fieldmap data
 
-* Hippocampal oblique T2 appears plausible
-* Check for obvious severe artifact
-* Minor display artifacts in DCV/FSLeyes should be interpreted cautiously
-
-### BOLD
-
-* Brain coverage looks plausible
-* Image is not obviously scrambled or grossly truncated
-
-### Fieldmaps
-
-* Expected images are present
-* Magnitude/phasediff images look like actual fieldmap data
-
-### DCV/FSLeyes caveat
-
-Use this visual pass primarily for **gross QC**. Subtle lines that change with panning or zooming may reflect display-side rendering/compression rather than the image data itself.
-
-For borderline calls:
-
-* pause movement and let the display settle
-* change FSLeyes interpolation settings
-* inspect exported screenshots or local images if necessary
+Use this pass for gross QC only. Subtle rendering artifacts in FSLeyes may not reflect the actual image data.
 
 ---
 
 # 5. Deface the T1w image in place
 
-Once a subject/session passes basic visual QC, deface the T1w image using:
-
 ```bash
-sbatch run_pydeface.sh <SITE> <SUBJECT_ID> <SESSION_ID>
+sbatch code/run_pydeface.sh <SUBJECT_ID> <SESSION_ID> [--dry-run]
 ```
 
 Examples:
 
 ```bash
-sbatch run_pydeface.sh AZ 1501 01
-sbatch run_pydeface.sh AZ 1501 02
-sbatch run_pydeface.sh UTA 1001 01
+sbatch code/run_pydeface.sh 1501 01
+sbatch code/run_pydeface.sh 1501 01 --dry-run
 ```
 
-This script:
-
-* defaces only the BIDS `T1w` image for the requested subject/session
-* writes to a temporary file first
-* replaces the original T1w only if PyDeface succeeds
-
-The raw non-defaced source of truth remains the original DICOMs in:
-
-```bash
-bids_<SITE>/sourcedata/
-```
-
-No marker files are written. Defacing status is tracked externally.
+- Defaces only the BIDS T1w image for the requested subject/session
+- Writes to a temp file first; replaces the original only if PyDeface succeeds
+- Writes a defaced marker to `code/status/` on success
+- The raw non-defaced source of truth remains in `sourcedata/`
 
 ---
 
 # 6. Run MRIQC
 
-MRIQC provides automated quality-control reports for the raw BIDS images.
-
-Run MRIQC one subject/session at a time:
-
 ```bash
-sbatch run_mriqc.sh <SITE> <SUBJECT_ID> <SESSION_ID>
+sbatch code/run_mriqc.sh <SUBJECT_ID> <SESSION_ID> [--dry-run]
 ```
 
 Examples:
 
 ```bash
-sbatch run_mriqc.sh AZ 1501 01
-sbatch run_mriqc.sh AZ 1501 02
-sbatch run_mriqc.sh UTA 1001 01
+sbatch code/run_mriqc.sh 1501 01
+sbatch code/run_mriqc.sh 1501 02 --dry-run
 ```
 
-MRIQC outputs are written under:
+Outputs are written to `derivatives/mriqc/`. Work directories go to `$SCRATCH`.
 
-```bash
-/work/10989/stevenweisberg/ls6/oa_navtrain/derivatives/mriqc_<SITE>/
-```
-
-Work directories are written to `$SCRATCH`.
-
-After MRIQC finishes, inspect the generated HTML reports and quality summaries for obvious outliers or failures.
+After MRIQC finishes, inspect the HTML reports for obvious outliers or failures.
 
 ---
 
 # 7. Run fMRIPrep
 
-After:
-
-* dcm2bids conversion is correct
-* basic visual QC is acceptable
-* the T1w image has been defaced
-* MRIQC has been run or queued as appropriate
-
-run fMRIPrep for that subject/session.
-
-General form:
+Run after: BIDS conversion is correct, visual QC passed, T1w is defaced, MRIQC is complete.
 
 ```bash
-sbatch run_fmriprep_subject_session.sbatch <SITE> <SUBJECT_ID> <SESSION_ID>
+sbatch code/run_fmriprep_subject_session.sbatch <SUBJECT_ID> <SESSION_ID> [--dry-run]
 ```
 
 Examples:
 
 ```bash
-sbatch run_fmriprep_subject_session.sbatch AZ 1501 01
-sbatch run_fmriprep_subject_session.sbatch AZ 1501 02
-sbatch run_fmriprep_subject_session.sbatch UTA 1001 01
+sbatch code/run_fmriprep_subject_session.sbatch 1501 01
+sbatch code/run_fmriprep_subject_session.sbatch 1501 02 --dry-run
 ```
 
-fMRIPrep produces preprocessed outputs and HTML visual reports that should be reviewed after completion.
+Outputs are written to `derivatives/fmriprep/`. Work directories go to `$SCRATCH`.
 
----
-
-# Troubleshooting notes
-
-## Missing scans or strange dcm2bids output
-
-Before rewriting the config, confirm that:
-
-1. the DICOM zip fully unzipped
-2. the correct `sourcedata/sub-*/ses-*` folder was used
-3. the helper output reflects the complete session
-
-Incomplete unzip can mimic:
-
-* missing fieldmaps
-* missing expected T1 reconstructions
-* unusual `No Pairing` outputs
-
-## Two T1 MPRAGEs
-
-Some AZ scans include:
-
-* `T1_MPRAGE_ND` = not gradient-corrected
-* `T1_MPRAGE` = gradient-corrected
-
-Use the gradient-corrected `T1_MPRAGE`.
-
-## Extra T1 scan
-
-Some sessions may include an additional:
-
-```text
-t1_mprage_sag_p2_iso
-```
-
-This appears to be a separate later T1 acquisition. Do not automatically include it in the default config unless there is a specific reason.
-
-## Duplicate-looking hippocampal T2s
-
-Some session 2 scans contain multiple `t2_tse_hippo_highsignal` outputs.
-
-The chosen AZ session 2 T2 is the version with:
-
-```text
-ImageTypeText: ORIGINAL, PRIMARY, M, NORM, DIS2D
-```
+Review the fMRIPrep HTML visual reports after completion.
 
 ---
 
 # Checking pipeline progress
 
-`code/check_progress.sh` prints a per-subject/session status table for one site, inferred from the filesystem and from marker files written by the pipeline scripts.
-
-Deploy it to the cluster at `bids_<SITE>/code/check_progress.sh`, then run:
-
 ```bash
-bash /work/10989/stevenweisberg/ls6/oa_navtrain/bids_AZ/code/check_progress.sh AZ
-bash /work/10989/stevenweisberg/ls6/oa_navtrain/bids_UTA/code/check_progress.sh UTA
+bash code/check_progress.sh
 ```
 
-Example output:
+Prints a table of all subjects/sessions found in `sourcedata/` and their status across all pipeline stages:
 
 ```
-Progress: AZ
-BIDS dir: /work/.../bids_AZ
-As of:    2025-06-01 14:32
+Progress: bids_oaNavtrainAZ
+BIDS dir: /work/.../bids_oaNavtrainAZ
+As of:    2026-06-01 14:32
 
 SUBJECT        SES     UNZIP   BIDS    QC      DEFACE  MRIQC   FMRIPREP
 -------------- ------  ------- ------- ------- ------- ------- ---------
-sub-1501       ses-01  YES      YES     YES     YES      YES     YES
-sub-1501       ses-02  YES      YES     YES     YES      YES      --
-sub-1603       ses-02  YES       --      --      --       --      --
+sub-1501       ses-01  YES     YES     YES     YES     YES     YES
+sub-1501       ses-02  YES     YES     YES     YES     YES      --
+sub-1603       ses-02  YES      --      --      --      --      --
 ```
 
-Stages and how they are detected:
-
-| Stage    | How detected |
-|----------|-------------|
-| UNZIP    | `sourcedata/sub-X/ses-Y/` exists and contains files |
-| BIDS     | `sub-X/ses-Y/**/*.nii.gz` exists in the BIDS dir |
-| QC       | Marker file written by `qc_open_session.sh --mark-qc-passed` |
-| DEFACE   | Marker file written automatically by `run_pydeface.sh` on success |
-| MRIQC    | `derivatives/mriqc/sub-X_ses-Y_*.html` or `derivatives/mriqc/sub-X/ses-Y/` exists |
+| Stage | How detected |
+|---|---|
+| UNZIP | `sourcedata/sub-X/ses-Y/` exists and contains files |
+| BIDS | `sub-X/ses-Y/*/*.nii.gz` exists |
+| QC | Marker: `code/status/sub-X_ses-Y_qc-passed` |
+| DEFACE | Marker: `code/status/sub-X_ses-Y_defaced` |
+| MRIQC | `derivatives/mriqc/` output exists |
 | FMRIPREP | `derivatives/fmriprep/sub-X/ses-Y/` exists |
 
-Marker files are stored in `bids_<SITE>/code/status/`. To mark visual QC as passed, close FSLeyes and use the `--mark-qc-passed` flag:
+---
+
+# Syncing participants.tsv
+
+After adding new subjects, sync `participants.tsv` with what's on disk:
 
 ```bash
-bash qc_open_session.sh AZ 1501 01 --mark-qc-passed
+bash code/sync_participants_tsv.sh           # add missing subjects
+bash code/sync_participants_tsv.sh --dry-run # preview changes
+bash code/sync_participants_tsv.sh --prune   # also remove deleted subjects
+```
+
+---
+
+# Troubleshooting
+
+## Missing scans or strange dcm2bids output
+
+Before rewriting the config, confirm:
+1. The DICOM zip fully unzipped — run `bash code/unzip_all.sh` again if unsure
+2. The correct `sourcedata/sub-*/ses-*/` folder was used
+3. The helper output reflects the complete session
+
+Incomplete unzip can mimic missing fieldmaps, missing T1 reconstructions, or unusual `No Pairing` output.
+
+## Two T1 MPRAGEs
+
+Some Siemens scanners produce both:
+- `T1_MPRAGE_ND` — not gradient-corrected
+- `T1_MPRAGE` — gradient-corrected
+
+Use the gradient-corrected version. In the config, add `"NonlinearGradientCorrection": true` as a criterion.
+
+## Extra T1 scan
+
+Some sessions include an additional `t1_mprage_sag_p2_iso` acquisition. Do not include it in the default config unless there is a specific reason.
+
+## Duplicate-looking hippocampal T2s
+
+Some sessions produce multiple `t2_tse_hippo_highsignal` outputs. Select the correct reconstruction using:
+
+```json
+"ImageTypeText": ["ORIGINAL", "PRIMARY", "M", "NORM", "DIS2D"]
 ```
 
 ---
 
 # Recommended processing order for a new subject/session
 
-Example for AZ subject 1501 session 02:
-
 ```bash
-# 1. Unzip DICOMs into sourcedata
-bash unzip_all.sh AZ 1501 02 1501_T2.zip
+# From the BIDS root directory:
+
+# 1. Unzip DICOMs
+bash code/unzip_all.sh 1501 02 1501_T2.zip
 
 # 2. Convert to BIDS
-sbatch run_dcm2bids.sh AZ 1501 02 --use-existing-config --validate
+sbatch code/run_dcm2bids.sh 1501 02 --use-existing-config --validate
 
-# 3. Visually QC after the conversion job finishes
-bash qc_open_session.sh AZ 1501 02
+# 3. Visually QC after the job finishes
+bash code/qc_open_session.sh 1501 02 --mark-qc-passed
 
-# 4. Deface the T1w if the images look acceptable
-sbatch run_pydeface.sh AZ 1501 02
+# 4. Deface
+sbatch code/run_pydeface.sh 1501 02
 
-# 5. Run MRIQC
-sbatch run_mriqc.sh AZ 1501 02
+# 5. MRIQC
+sbatch code/run_mriqc.sh 1501 02
 
-# 6. Run fMRIPrep when ready
-sbatch run_fmriprep_subject_session.sbatch AZ 1501 02
+# 6. fMRIPrep
+sbatch code/run_fmriprep_subject_session.sbatch 1501 02
+
+# 7. Sync participants.tsv
+bash code/sync_participants_tsv.sh
 ```
-
-
