@@ -7,12 +7,14 @@
 #   bash /path/to/bids_dataset/code/check_progress.sh
 #
 # Stages tracked:
-#   UNZIP     sourcedata/sub-X/ses-Y/ exists and contains files
 #   BIDS      sub-X/ses-Y/ exists with at least one .nii.gz
 #   QC        marker: code/status/sub-X_ses-Y_qc-passed
 #   DEFACE    marker: code/status/sub-X_ses-Y_defaced
 #   MRIQC     derivatives/mriqc/sub-X_ses-Y_*.html or sub-X/ses-Y/ exists
 #   FMRIPREP  derivatives/fmriprep/sub-X/ses-Y/ exists
+#
+# Note: zip files in sourcedata/ are the raw data record. Subjects are
+# enumerated by scanning sourcedata/ for *.zip files.
 
 set -uo pipefail
 
@@ -34,28 +36,25 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
     exit 1
 fi
 
-# Collect all sub/ses pairs from sourcedata
+# Enumerate subjects and sessions from sub-*/ses-* dirs in the BIDS root.
+# These are created by run_dcm2bids.sh. Zip files in sourcedata/ are the
+# raw data record but have unpredictable names, so converted dirs drive the table.
 declare -a ROWS=()
 while IFS= read -r -d '' sesdir; do
     sub=$(basename "$(dirname "$sesdir")")
     ses=$(basename "$sesdir")
     ROWS+=("${sub}|${ses}")
-done < <(find "$SOURCE_DIR" -mindepth 2 -maxdepth 2 -type d -name 'ses-*' -print0 | sort -z)
+done < <(find "$BIDS_DIR" -mindepth 2 -maxdepth 2 -type d -name 'ses-*' \
+         -not -path "*/sourcedata/*" -not -path "*/derivatives/*" -print0 | sort -z)
 
 if [[ ${#ROWS[@]} -eq 0 ]]; then
-    echo "No subject/session directories found under $SOURCE_DIR"
+    echo "No converted subject/session directories found."
+    echo "Run code/run_dcm2bids.sh to convert a subject, or check $BIDS_DIR."
     exit 0
 fi
 
 ok()   { echo "YES "; }
 fail() { echo " -- "; }
-
-check_unzip() {
-    local sub="$1" ses="$2"
-    local dir="$SOURCE_DIR/$sub/$ses"
-    if [[ -d "$dir" ]] && compgen -G "$dir/*" > /dev/null 2>&1; then
-        ok; else fail; fi
-}
 
 check_bids() {
     local sub="$1" ses="$2"
@@ -90,17 +89,16 @@ echo "Progress: $(basename "$BIDS_DIR")"
 echo "BIDS dir: $BIDS_DIR"
 echo "As of:    $(date '+%Y-%m-%d %H:%M')"
 echo ""
-printf "%-14s %-6s  %-7s %-7s %-7s %-7s %-7s %-9s\n" \
-    "SUBJECT" "SES" "UNZIP" "BIDS" "QC" "DEFACE" "MRIQC" "FMRIPREP"
-printf "%-14s %-6s  %-7s %-7s %-7s %-7s %-7s %-9s\n" \
-    "--------------" "------" "-------" "-------" "-------" "-------" "-------" "---------"
+printf "%-14s %-6s  %-7s %-7s %-7s %-7s %-9s\n" \
+    "SUBJECT" "SES" "BIDS" "QC" "DEFACE" "MRIQC" "FMRIPREP"
+printf "%-14s %-6s  %-7s %-7s %-7s %-7s %-9s\n" \
+    "--------------" "------" "-------" "-------" "-------" "-------" "---------"
 
 for row in "${ROWS[@]}"; do
     sub="${row%%|*}"
     ses="${row##*|}"
-    printf "%-14s %-6s  %-7s %-7s %-7s %-7s %-7s %-9s\n" \
+    printf "%-14s %-6s  %-7s %-7s %-7s %-7s %-9s\n" \
         "$sub" "$ses" \
-        "$(check_unzip    "$sub" "$ses")" \
         "$(check_bids     "$sub" "$ses")" \
         "$(check_qc       "$sub" "$ses")" \
         "$(check_deface   "$sub" "$ses")" \

@@ -61,7 +61,6 @@ check "MRIQC 24.0.2"         "$PROJECT_DIR/containers/mriqc-24.0.2.sif"         
 check "dcm2bids venv"        "$PROJECT_DIR/venvs/dcm2bids/bin/activate"          file
 check "pydeface venv"        "$PROJECT_DIR/venvs/pydeface/bin/activate"          file
 check "FreeSurfer license"   "$PROJECT_DIR/license.txt"                          file
-check "zipped_dicoms/"       "$PROJECT_DIR/zipped_dicoms"                        dir
 
 echo ""
 echo "================================================"

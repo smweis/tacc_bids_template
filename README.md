@@ -20,13 +20,12 @@ bids_<dataset>/
 │   ├── run_fmriprep_subject_session.sbatch
 │   ├── run_mriqc.sh
 │   ├── run_pydeface.sh
-│   ├── unzip_all.sh
 │   ├── dcm2bids_helper.sh
 │   ├── qc_open_session.sh
 │   ├── check_setup.sh
 │   ├── check_progress.sh
 │   └── sync_participants_tsv.sh
-├── sourcedata/                    ← raw DICOMs (gitignored)
+├── sourcedata/                    ← raw DICOM zips (gitignored)
 ├── derivatives/                   ← preprocessing outputs (gitignored)
 ├── sub-*/                         ← BIDS subject data (gitignored)
 ├── dataset_description.json
@@ -42,7 +41,6 @@ Project-level resources (shared across datasets, lives one directory above):
 <project_dir>/
 ├── containers/        ← Apptainer SIF images
 ├── venvs/             ← Python virtual environments
-├── zipped_dicoms/     ← incoming DICOM zip files
 └── license.txt        ← FreeSurfer license
 ```
 
@@ -73,7 +71,9 @@ Throughout these scripts:
 
 # Workflow overview
 
-1. **Unzip DICOMs** into `sourcedata/` with `code/unzip_all.sh`
+Raw DICOM zip files are the source of truth. Copy them into `sourcedata/` and leave them there. Scripts extract to `$SCRATCH` as needed and clean up automatically.
+
+1. **Copy DICOM zip** into `sourcedata/`
 2. **Inspect DICOM metadata** with `code/dcm2bids_helper.sh` (when building or debugging a config)
 3. **Convert to BIDS** with `code/run_dcm2bids.sh`
 4. **Visually QC** converted images with `code/qc_open_session.sh`
@@ -89,24 +89,16 @@ bash code/check_progress.sh
 
 ---
 
-# 1. Unzip DICOMs into sourcedata
+# 1. Copy DICOM zip into sourcedata
+
+Transfer the zip file for the subject/session into `sourcedata/`:
 
 ```bash
-bash code/unzip_all.sh <SUBJECT_ID> <SESSION_ID> <ZIP_FILE>
+# Example — adjust path to wherever your zips come from
+cp /path/to/1501_ses02.zip sourcedata/
 ```
 
-Examples:
-
-```bash
-bash code/unzip_all.sh 1603 02 1603_T2.zip
-bash code/unzip_all.sh 1501 01 1501_ses01.zip
-```
-
-- Zip files are expected in `<project_dir>/zipped_dicoms/`
-- Output goes to `sourcedata/sub-<SUBJECT_ID>/ses-<SESSION_ID>/`
-- Uses `unzip -o` so re-extraction is safe
-
-After unzipping, confirm the expected DICOMs are present before proceeding.
+The zip stays in `sourcedata/` as the permanent raw data record. Scripts extract to `$SCRATCH` automatically when they need the DICOMs and clean up afterward.
 
 ---
 
@@ -115,13 +107,13 @@ After unzipping, confirm the expected DICOMs are present before proceeding.
 If a session config has already been validated and works, skip this step.
 
 ```bash
-bash code/dcm2bids_helper.sh <SUBJECT_ID> <SESSION_ID>
+bash code/dcm2bids_helper.sh <SUBJECT_ID> <SESSION_ID> <ZIP_FILE>
 ```
 
 Example:
 
 ```bash
-bash code/dcm2bids_helper.sh 1501 02
+bash code/dcm2bids_helper.sh 1501 02 1501_ses02.zip
 ```
 
 Use this when:
@@ -148,15 +140,15 @@ Do **not** use series number prefixes (e.g. `005_`, `006_`) — these vary acros
 # 3. Run dcm2bids
 
 ```bash
-sbatch code/run_dcm2bids.sh <SUBJECT_ID> <SESSION_ID> <--copy-template | --use-existing-config> [--validate] [--re-run] [--dry-run]
+sbatch code/run_dcm2bids.sh <SUBJECT_ID> <SESSION_ID> <ZIP_FILE> <--copy-template | --use-existing-config> [--validate] [--re-run] [--dry-run]
 ```
 
 Examples:
 
 ```bash
-sbatch code/run_dcm2bids.sh 1501 01 --copy-template --validate
-sbatch code/run_dcm2bids.sh 1501 02 --use-existing-config --validate
-sbatch code/run_dcm2bids.sh 1501 01 --copy-template --dry-run
+sbatch code/run_dcm2bids.sh 1501 01 1501_ses01.zip --copy-template --validate
+sbatch code/run_dcm2bids.sh 1501 02 1501_ses02.zip --use-existing-config --validate
+sbatch code/run_dcm2bids.sh 1501 01 1501_ses01.zip --copy-template --dry-run
 ```
 
 Options:
@@ -289,7 +281,6 @@ sub-1603       ses-02  YES      --      --      --      --      --
 
 | Stage | How detected |
 |---|---|
-| UNZIP | `sourcedata/sub-X/ses-Y/` exists and contains files |
 | BIDS | `sub-X/ses-Y/*/*.nii.gz` exists |
 | QC | Marker: `code/status/sub-X_ses-Y_qc-passed` |
 | DEFACE | Marker: `code/status/sub-X_ses-Y_defaced` |
@@ -348,11 +339,11 @@ Some sessions produce multiple `t2_tse_hippo_highsignal` outputs. Select the cor
 ```bash
 # From the BIDS root directory:
 
-# 1. Unzip DICOMs
-bash code/unzip_all.sh 1501 02 1501_T2.zip
+# 1. Copy zip into sourcedata
+cp /path/to/1501_ses02.zip sourcedata/
 
-# 2. Convert to BIDS
-sbatch code/run_dcm2bids.sh 1501 02 --use-existing-config --validate
+# 2. Convert to BIDS (extracts zip to $SCRATCH automatically)
+sbatch code/run_dcm2bids.sh 1501 02 1501_ses02.zip --use-existing-config --validate
 
 # 3. Visually QC after the job finishes
 bash code/qc_open_session.sh 1501 02 --mark-qc-passed

@@ -9,28 +9,27 @@ PROJECT_DIR="$(dirname "$BIDS_DIR")"
 usage() {
     cat <<EOF
 Usage:
-  bash $0 <SUBJECT_ID> <SESSION_ID>
+  bash $0 <SUBJECT_ID> <SESSION_ID> <ZIP_FILE>
 
 Required:
   SUBJECT_ID    Subject ID WITHOUT the 'sub-' prefix (e.g. 1603)
   SESSION_ID    Session ID WITHOUT the 'ses-' prefix (e.g. 01 or 02)
+  ZIP_FILE      Zip filename in sourcedata/ (e.g. 1603_ses02.zip)
 
 Examples:
-  bash $0 1603 02
-  bash $0 utadev01 01
+  bash $0 1603 02 1603_ses02.zip
+  bash $0 utadev01 01 utadev01_ses01.zip
 
 Purpose:
-  Runs dcm2bids_helper on a subject/session's DICOM directory and writes
-  converted NIfTI JSON sidecars to a scratch directory for inspection.
+  Extracts DICOMs from the zip to \$SCRATCH, runs dcm2bids_helper, and
+  writes converted NIfTI JSON sidecars for inspection. Use this to:
 
-  Use this to:
     - Build a new dcm2bids config for a session type you haven't seen before
     - Debug unexpected 'No Pairing' outputs from run_dcm2bids.sh
     - Confirm which DICOM fields are available for config matching
 
   After it runs, inspect the JSON sidecars in the output directory printed
-  below. Each .json file corresponds to one DICOM series and shows all
-  available metadata fields that can be used as criteria in a dcm2bids config.
+  below. Each .json file corresponds to one DICOM series.
 
   Key fields to look for:
     SeriesDescription           Most reliable identifier for a scan type
@@ -41,18 +40,19 @@ Purpose:
   Do NOT rely on series number prefixes (e.g. 005_, 006_) — these vary
   across participants and sessions.
 
-  Output is written to \$SCRATCH and will be auto-cleaned by TACC.
-  It does NOT touch the real BIDS directory.
+  All output is written to \$SCRATCH and will be auto-cleaned by TACC.
+  Nothing is written to the BIDS directory.
 EOF
 }
 
-if [[ $# -ne 2 ]]; then
+if [[ $# -ne 3 ]]; then
     usage
     exit 1
 fi
 
 RAW_SUBID="$1"
 SESSION_ID="$2"
+ZIP_FILE="$3"
 
 if [[ "$RAW_SUBID" == sub-* ]]; then
     echo "ERROR: SUBJECT_ID should NOT include 'sub-'."
@@ -64,34 +64,37 @@ if [[ "$SESSION_ID" == ses-* ]]; then
     exit 1
 fi
 
-DICOM_DIR="$BIDS_DIR/sourcedata/sub-${RAW_SUBID}/ses-${SESSION_ID}"
-HELPER_DIR="$SCRATCH/dcm2bids_helper_sub-${RAW_SUBID}_ses-${SESSION_ID}"
+ZIP_PATH="$BIDS_DIR/sourcedata/$ZIP_FILE"
+HELPER_SCRATCH="$SCRATCH/dcm2bids_helper_sub-${RAW_SUBID}_ses-${SESSION_ID}"
+DICOM_DIR="$HELPER_SCRATCH/dicoms"
 
-if [[ ! -d "$DICOM_DIR" ]]; then
-    echo "ERROR: DICOM source directory not found:"
-    echo "  $DICOM_DIR"
+if [[ ! -f "$ZIP_PATH" ]]; then
+    echo "ERROR: zip file not found: $ZIP_PATH"
     exit 1
 fi
 
 source "$PROJECT_DIR/venvs/dcm2bids/bin/activate"
 
-mkdir -p "$HELPER_DIR"
-
 echo "Running dcm2bids_helper"
 echo "  Subject: sub-$RAW_SUBID"
 echo "  Session: ses-$SESSION_ID"
-echo "  Input:   $DICOM_DIR"
-echo "  Output:  $HELPER_DIR/tmp_dcm2bids/helper/"
+echo "  Zip:     $ZIP_PATH"
+echo "  Output:  $HELPER_SCRATCH/tmp_dcm2bids/helper/"
 echo
+
+echo "Extracting DICOMs to scratch..."
+rm -rf "$HELPER_SCRATCH"
+mkdir -p "$DICOM_DIR"
+unzip -o "$ZIP_PATH" -d "$DICOM_DIR"
 
 dcm2bids_helper \
   -d "$DICOM_DIR" \
-  -o "$HELPER_DIR" \
+  -o "$HELPER_SCRATCH" \
   --force
 
 echo
 echo "Done. Inspect JSON sidecars here:"
-echo "  $HELPER_DIR/tmp_dcm2bids/helper/"
+echo "  $HELPER_SCRATCH/tmp_dcm2bids/helper/"
 echo
 echo "Each .json file is one DICOM series. Look for SeriesDescription,"
 echo "ProtocolName, NonlinearGradientCorrection, and ImageTypeText to"
