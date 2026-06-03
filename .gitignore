@@ -7,9 +7,6 @@ sourcedata/
 # Derivatives (preprocessing outputs)
 derivatives/
 
-# Temporary dcm2bids working directory
-tmp_dcm2bids/
-
 # Runtime status markers
 code/status/
 

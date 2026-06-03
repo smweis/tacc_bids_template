@@ -121,7 +121,7 @@ fi
 CONFIG_DIR="$BIDS_DIR/code/configs"
 ZIP_PATH="$BIDS_DIR/sourcedata/$ZIP_FILE"
 SCRATCH_SRC="$SCRATCH/dcm2bids_src_${SUBID}_${SESID}"
-TMP_ROOT="$BIDS_DIR/tmp_dcm2bids"
+TMP_ROOT="$SCRATCH/dcm2bids_work"
 SUB_TMP_DIR="$TMP_ROOT/${SUBID}_${SESID}"
 TEMPLATE_JSON="$CONFIG_DIR/dcm2bids_config_ses-${SESSION_ID}_template.json"
 CONFIG_JSON="$CONFIG_DIR/dcm2bids_config_sub-${RAW_SUBID}_ses-${SESSION_ID}.json"
@@ -203,7 +203,6 @@ echo "Running: ${DCM2BIDS_CMD[*]}"
 "${DCM2BIDS_CMD[@]}"
 
 rm -rf "$SUB_TMP_DIR"
-rm -rf "$BIDS_DIR/tmp_dcm2bids"
 rm -rf "$SCRATCH_SRC"
 echo "Cleaned up scratch DICOM extraction."
 
