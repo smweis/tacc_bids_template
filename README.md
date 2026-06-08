@@ -1,6 +1,6 @@
 # DATASET_NAME
 
-**Principal Investigator:** Steven Weisberg (REPLACE@institution.edu)
+**Principal Investigator:** Steven Weisberg (steven.weisberg@uta.edu)
 
 ## Overview
 
@@ -36,10 +36,6 @@ Quality control reports were generated using MRIQC 24.0.2.
 
 This dataset follows the [BIDS specification v1.11.1](https://bids.neuroimaging.io).
 Pipeline scripts and processing documentation are located in `code/`.
-
-## Contact
-
-Steven Weisberg — REPLACE@institution.edu
 
 ---
 
