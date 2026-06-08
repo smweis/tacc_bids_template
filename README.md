@@ -111,7 +111,7 @@ Raw DICOM zip files are the source of truth. Copy them into `sourcedata/` and le
 1. Copy DICOM zip into `sourcedata/`
 2. **Inspect DICOM metadata** with `code/dcm2bids_helper.sh` *(when building or debugging a config)*
 3. **Convert to BIDS** with `code/run_dcm2bids.sh`
-4. **Visually QC** converted images with `code/qc_open_session.sh`
+4. **Visually QC** (in TAPS) converted images with `code/qc_open_session.sh`
 5. **Deface** the T1w image with `code/run_pydeface.sh`
 6. **Run MRIQC** with `code/run_mriqc.sh`
 7. **Run fMRIPrep** with `code/run_fmriprep_subject_session.sbatch`
@@ -135,6 +135,8 @@ The zip stays in `sourcedata/` as the permanent raw data record. Scripts extract
 ---
 
 ## Step 2 — Inspect DICOM metadata *(when needed)*
+
+This step is only necessary in setting a study up. 
 
 ```bash
 bash code/dcm2bids_helper.sh <SUBJECT_ID> <SESSION_ID> <ZIP_FILE>
@@ -161,6 +163,8 @@ Use this when converting a new session type for the first time, when scans appea
 
 ## Step 3 — Run dcm2bids
 
+This step will convert your zipped DICOM data into a bids formatted dataset for one subject (and one session). 
+
 ```bash
 sbatch code/run_dcm2bids.sh <SUBJECT_ID> <SESSION_ID> <ZIP_FILE> \
   <--copy-template | --use-existing-config> [--validate] [--re-run] [--dry-run]
@@ -184,7 +188,11 @@ After completion, inspect the `.out` log in `logs/`. Watch for `No Pairing` line
 
 ---
 
-## Step 4 — Visually QC the converted BIDS images
+## Step 4 — Visually QC the converted BIDS images in TAP
+
+For this step, you need to open the [TACC Analysis Portal](https://tap.tacc.utexas.edu). 
+
+This step is just a sanity check that all files are present and not massively corrupted. 
 
 ```bash
 bash code/qc_open_session.sh <SUBJECT_ID> <SESSION_ID> [--mark-qc-passed]
