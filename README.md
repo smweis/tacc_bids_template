@@ -89,18 +89,16 @@ Scripts resolve all paths automatically from their own location — no hardcoded
 
 ### 1. Clone the study repo onto TACC
 
-SSH to Lonestar6 and clone into your project directory:
+Set up the SSH alias on your Mac first (see Step 1 below), then:
 
 ```bash
-ssh USERNAME@ls6.tacc.utexas.edu
-cd /work/PROJECTID/USERNAME/ls6/oa_navtrain
+ssh tacc
+cd /home1/PROJECTID/USERNAME/work_STUDYNAME
 git clone https://github.com/smweis/tacc_bids_template.git bids_STUDYNAME
 cd bids_STUDYNAME
 ```
 
 The last argument (`bids_STUDYNAME`) sets the local directory name — replace it with your study (e.g. `bids_oaNavtrainUTA`).
-
-> If you get "could not read from remote repository", use the HTTPS URL above (no SSH key required), or add your TACC SSH key to GitHub.
 
 ### 2. Create gitignored directories
 
@@ -205,29 +203,39 @@ bash code/check_progress.sh
 
 ## Step 1 — Transfer DICOM zip to TACC and into sourcedata
 
-DICOM zips live on your local machine (or lab server) and must be transferred to TACC before processing. Run these commands **from your local terminal**, not from a TACC login shell.
+DICOM zips live on your local machine and must be transferred to TACC before processing. Run these commands **from your local terminal**, not from a TACC login shell.
 
-**Connect to TACC:**
+### Set up an SSH alias (one-time)
 
-```bash
-ssh USERNAME@ls6.tacc.utexas.edu
+Add the following to `~/.ssh/config` on your Mac (create the file if it doesn't exist):
+
+```
+Host tacc
+    HostName ls6.tacc.utexas.edu
+    User YOUR_TACC_USERNAME
 ```
 
-**Transfer a zip with scp:**
+After that, `ssh tacc` logs you in and `scp tacc:...` works as a shorthand.
+
+### Connect to TACC
 
 ```bash
-scp /local/path/to/1501_ses01.zip \
-    USERNAME@ls6.tacc.utexas.edu:/path/to/bids_dataset/sourcedata/
+ssh tacc
 ```
 
-**Or transfer a whole folder of zips with rsync (skips already-transferred files):**
+### Transfer a zip with scp
+
+Run this from your **local terminal**:
 
 ```bash
-rsync -avP /local/path/to/zips/ \
-    USERNAME@ls6.tacc.utexas.edu:/path/to/bids_dataset/sourcedata/
+scp ./1501_ses01.zip tacc:/home1/PROJECTID/USERNAME/work_STUDYNAME/bids_STUDYNAME/sourcedata/
 ```
 
-Replace `USERNAME` with your TACC username and `/path/to/bids_dataset/` with the actual path to your BIDS repo on TACC (e.g. `/work/10989/USERNAME/ls6/oa_navtrain/bids_oaNavtrainAZ`).
+For example:
+
+```bash
+scp ./PRC20250143501T1.zip tacc:/home1/10989/stevenweisberg/work_oa_navtrain/bids_oaNavtrainUTA/sourcedata/
+```
 
 The zip stays in `sourcedata/` as the permanent raw data record. Scripts extract to `$SCRATCH` automatically and clean up afterward.
 
@@ -414,12 +422,11 @@ Select the correct reconstruction using:
 
 ```bash
 # From your LOCAL terminal — transfer zip to TACC:
-scp /local/path/to/1501_ses02.zip \
-    USERNAME@ls6.tacc.utexas.edu:/path/to/bids_oaNavtrainAZ/sourcedata/
+scp ./1501_ses02.zip tacc:/home1/PROJECTID/USERNAME/work_STUDYNAME/bids_STUDYNAME/sourcedata/
 
 # Then SSH to TACC and cd to the BIDS root:
-ssh USERNAME@ls6.tacc.utexas.edu
-cd /path/to/bids_oaNavtrainAZ
+ssh tacc
+cd /home1/PROJECTID/USERNAME/work_STUDYNAME/bids_STUDYNAME
 
 # From the BIDS root directory:
 
