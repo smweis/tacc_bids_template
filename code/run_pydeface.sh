@@ -15,8 +15,8 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIDS_DIR="$(dirname "$SCRIPT_DIR")"
+BIDS_DIR="$SLURM_SUBMIT_DIR"
+SCRIPT_DIR="$BIDS_DIR/code"
 PROJECT_DIR="$(dirname "$BIDS_DIR")"
 
 usage() {
