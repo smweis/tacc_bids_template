@@ -4,6 +4,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIDS_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(dirname "$BIDS_DIR")"
+
+source "$PROJECT_DIR/venvs/dcm2bids/bin/activate"
 
 usage() {
     cat <<EOF

@@ -73,6 +73,7 @@ if [[ ! -f "$ZIP_PATH" ]]; then
     exit 1
 fi
 
+module reset
 source "$PROJECT_DIR/venvs/dcm2bids/bin/activate"
 
 echo "Running dcm2bids_helper"
