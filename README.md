@@ -119,6 +119,7 @@ cd ..   # now in oa_navtrain/
 python3 -m venv venvs/dcm2bids
 source venvs/dcm2bids/bin/activate
 pip install dcm2bids==3.2.0
+pip install dcm2niix
 deactivate
 ```
 
