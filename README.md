@@ -151,13 +151,21 @@ scp /local/path/to/license.txt USERNAME@ls6.tacc.utexas.edu:/work/PROJECTID/USER
 
 ### 4. Update SLURM account and email in the scripts
 
-Edit the `#SBATCH` headers in the pipeline scripts to use your allocation code and email:
+Run these from inside your BIDS directory on TACC to replace the placeholders in all scripts at once:
 
 ```bash
-# In each .sh / .sbatch script, replace:
-#SBATCH -A ACCOUNT_CODE
-#SBATCH --mail-user=YOUR_EMAIL@domain.com
+grep -rl 'ACCOUNT_CODE' . | while read f; do sed -i 's/ACCOUNT_CODE/YOUR_ALLOCATION/g' "$f"; done
+grep -rl 'YOUR_EMAIL@domain.com' . | while read f; do sed -i 's/YOUR_EMAIL@domain\.com/YOUR_EMAIL/g' "$f"; done
 ```
+
+For example:
+
+```bash
+grep -rl 'ACCOUNT_CODE' . | while read f; do sed -i 's/ACCOUNT_CODE/26002/g' "$f"; done
+grep -rl 'YOUR_EMAIL@domain.com' . | while read f; do sed -i 's/YOUR_EMAIL@domain\.com/steven.weisberg@uta.edu/g' "$f"; done
+```
+
+> Note: use `sed -i` (no quotes after `-i`) on TACC/Linux. On macOS it's `sed -i ''`.
 
 ### 5. Verify the setup
 
