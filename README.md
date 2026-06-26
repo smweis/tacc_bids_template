@@ -94,9 +94,11 @@ SSH to Lonestar6 and clone into your project directory:
 ```bash
 ssh USERNAME@ls6.tacc.utexas.edu
 cd /work/PROJECTID/USERNAME/ls6/oa_navtrain
-git clone git@github.com:YOUR_ORG/bids_oaNavtrainAZ.git
+git clone https://github.com/smweis/bids_oaNavtrainAZ.git
 cd bids_oaNavtrainAZ
 ```
+
+> If you get "could not read from remote repository", TACC may not have your SSH key for GitHub. Use the HTTPS URL above (no SSH key required), or add your TACC SSH key to GitHub first.
 
 ### 2. Create gitignored directories
 
