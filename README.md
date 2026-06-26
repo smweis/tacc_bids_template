@@ -91,11 +91,86 @@ Scripts resolve all paths automatically from their own location — no hardcoded
 
 ## Setup
 
-Before running anything, verify the project structure is in place:
+### 1. Clone the study repo onto TACC
+
+SSH to Lonestar6 and clone into your project directory:
 
 ```bash
+ssh USERNAME@ls6.tacc.utexas.edu
+cd /work/PROJECTID/USERNAME/ls6/oa_navtrain
+git clone git@github.com:YOUR_ORG/bids_oaNavtrainAZ.git
+cd bids_oaNavtrainAZ
+```
+
+### 2. Create gitignored directories
+
+These are excluded from the repo and must be created by hand:
+
+```bash
+mkdir -p sourcedata logs code/status
+```
+
+### 3. Set up project-level resources (one directory above the BIDS root)
+
+The containers, virtual environments, and FreeSurfer license live in the parent directory (`oa_navtrain/`), shared across datasets.
+
+**dcm2bids virtual environment:**
+
+```bash
+cd ..   # now in oa_navtrain/
+python3 -m venv venvs/dcm2bids
+source venvs/dcm2bids/bin/activate
+pip install dcm2bids==3.2.0
+deactivate
+```
+
+**PyDeface virtual environment:**
+
+```bash
+python3 -m venv venvs/pydeface
+source venvs/pydeface/bin/activate
+pip install pydeface
+deactivate
+```
+
+**Apptainer containers** — pull or copy the SIF files into `containers/`:
+
+```bash
+mkdir -p containers
+# fMRIPrep
+apptainer pull containers/fmriprep-25.2.5.sif docker://nipreps/fmriprep:25.2.5
+# MRIQC
+apptainer pull containers/mriqc-24.0.2.sif docker://nipreps/mriqc:24.0.2
+```
+
+> Pulls can take 30–60 minutes on TACC. Run them in an `idev` session or a short SLURM job, not on a login node.
+
+**FreeSurfer license** — copy your `license.txt` into `oa_navtrain/`:
+
+```bash
+scp /local/path/to/license.txt USERNAME@ls6.tacc.utexas.edu:/work/PROJECTID/USERNAME/ls6/oa_navtrain/license.txt
+```
+
+### 4. Update SLURM account and email in the scripts
+
+Edit the `#SBATCH` headers in the pipeline scripts to use your allocation code and email:
+
+```bash
+# In each .sh / .sbatch script, replace:
+#SBATCH -A ACCOUNT_CODE
+#SBATCH --mail-user=YOUR_EMAIL@domain.com
+```
+
+### 5. Verify the setup
+
+```bash
+cd bids_oaNavtrainAZ
 bash code/check_setup.sh
 ```
+
+All checks should pass before running any pipeline steps.
+
+---
 
 All scripts must be submitted or run **from the BIDS root directory**:
 
@@ -128,11 +203,31 @@ bash code/check_progress.sh
 
 ---
 
-## Step 1 — Copy DICOM zip into sourcedata
+## Step 1 — Transfer DICOM zip to TACC and into sourcedata
+
+DICOM zips live on your local machine (or lab server) and must be transferred to TACC before processing. Run these commands **from your local terminal**, not from a TACC login shell.
+
+**Connect to TACC:**
 
 ```bash
-cp /path/to/1501_ses02.zip sourcedata/
+ssh USERNAME@ls6.tacc.utexas.edu
 ```
+
+**Transfer a zip with scp:**
+
+```bash
+scp /local/path/to/1501_ses01.zip \
+    USERNAME@ls6.tacc.utexas.edu:/path/to/bids_dataset/sourcedata/
+```
+
+**Or transfer a whole folder of zips with rsync (skips already-transferred files):**
+
+```bash
+rsync -avP /local/path/to/zips/ \
+    USERNAME@ls6.tacc.utexas.edu:/path/to/bids_dataset/sourcedata/
+```
+
+Replace `USERNAME` with your TACC username and `/path/to/bids_dataset/` with the actual path to your BIDS repo on TACC (e.g. `/work/10989/USERNAME/ls6/oa_navtrain/bids_oaNavtrainAZ`).
 
 The zip stays in `sourcedata/` as the permanent raw data record. Scripts extract to `$SCRATCH` automatically and clean up afterward.
 
@@ -310,10 +405,15 @@ Select the correct reconstruction using:
 ## Recommended Processing Order
 
 ```bash
-# From the BIDS root directory:
+# From your LOCAL terminal — transfer zip to TACC:
+scp /local/path/to/1501_ses02.zip \
+    USERNAME@ls6.tacc.utexas.edu:/path/to/bids_oaNavtrainAZ/sourcedata/
 
-# 1. Copy zip into sourcedata
-cp /path/to/1501_ses02.zip sourcedata/
+# Then SSH to TACC and cd to the BIDS root:
+ssh USERNAME@ls6.tacc.utexas.edu
+cd /path/to/bids_oaNavtrainAZ
+
+# From the BIDS root directory:
 
 # 2. Convert to BIDS
 sbatch code/run_dcm2bids.sh 1501 02 1501_ses02.zip --use-existing-config --validate
